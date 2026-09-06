@@ -1,0 +1,13 @@
+{
+  "name": "factorio-research-queue-for-space_age",
+  "version": "0.6.25",
+  "title": "Extended Research Queue 2.0",
+  "author": "cmnielsen",
+  "contact": "",
+  "homepage": "https://mods.factorio.com/mod/factorio-research-queue",
+  "description": "An improved GUI for managing the research queue in Factorio 2.x, with filtering, search, queue controls, research time estimates, and prerequisite information. Originally created by sh4dow as Extended Research Queue, based on sonaxaton-research-queue by sonaxaton.",
+  "factorio_version": "2.0",
+  "dependencies": [
+    "flib >= 0.12.0"
+  ]
+}

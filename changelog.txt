@@ -1,0 +1,79 @@
+---------------------------------------------------------------------------------------------------
+Version: 0.6.25
+Date: 2026-09-06
+
+  Bugfixes:
+    - Corrected science pack totals and remaining-time estimates for repeatable technologies when the technology price multiplier is greater than 1.
+
+  Thanks:
+    - Thanks to yejenar480 for reporting the repeatable technology cost calculation error.
+
+---------------------------------------------------------------------------------------------------
+Version: 0.6.24
+Date: 2026-08-22
+
+  Bugfixes:
+    - Fixed the researched and upgraded technology filters so both checkboxes can be selected independently.
+
+---------------------------------------------------------------------------------------------------
+Version: 0.6.23
+Date: 2026-06-20
+
+  Bugfixes:
+    - Removed duplicate research completion notification from the mod; only the base game message is shown now.
+    - Fixed tooltip science pack icons for technology requirements by defaulting missing ingredient types.
+    - Added prerequisite technology information to the research queue tooltip.
+
+---------------------------------------------------------------------------------------------------
+Version: 0.6.22
+Date: 2026-06-14
+
+  Graphics:
+    - Updated mod thumbnail to new dieselpunk industrial style artwork.
+
+---------------------------------------------------------------------------------------------------
+Version: 0.6.21
+Date: 2026-06-14
+
+  Locale:
+    - Added missing "research-finished" locale key that caused an "Unknown key" error in chat when a technology finished researching.
+
+---------------------------------------------------------------------------------------------------
+Version: 0.6.20
+Date: 2026-06-14
+
+  Bugfixes:
+    - Fixed crash on load caused by hardcoded mod path "__factorio-research-queue__" not matching the renamed mod. Updated references in prototypes/shortcuts.lua and prototypes/sprites.lua.
+
+  Graphics:
+    - Added thumbnail.png to mod root.
+
+---------------------------------------------------------------------------------------------------
+Version: 0.6.19
+Date: 2026-06-14
+
+  Info:
+    - Updated mod name, title, author and description with proper credits to original authors sh4dow and sonaxaton.
+
+---------------------------------------------------------------------------------------------------
+Version: 0.6.18
+Date: 2026-06-14
+
+  Bugfixes:
+    - Fixed crash on queue interaction: force.research_queue_enabled was removed in Factorio 2.0. The research queue is now always enabled. Removed all reads and writes to this property in scripts/queue.lua.
+
+---------------------------------------------------------------------------------------------------
+Version: 0.6.17
+Date: 2026-06-14
+
+  Bugfixes:
+    - Fixed crash on init: force.get_saved_technology_progress() was removed in Factorio 2.0. Replaced with tech.saved_progress property on LuaTechnology in scripts/rqtech.lua.
+
+---------------------------------------------------------------------------------------------------
+Version: 0.6.16
+Date: 2026-06-14
+
+  Bugfixes:
+    - Fixed crash on init: research_unit_ingredients no longer includes a "type" field in Factorio 2.0 (science packs are always items). Sprite paths now default to "item/" when type is nil (scripts/gui/main.lua).
+    - Fixed science pack filter detection failing silently for the same reason (scripts/gui/actions.lua).
+    - Fixed version format: Factorio 2.0 requires versions in Major.Middle.Minor format (3 parts). Renamed mod from factorio-research-queue to factorio-research-queue-for-space_age.
