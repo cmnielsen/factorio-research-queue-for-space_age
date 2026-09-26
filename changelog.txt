@@ -1,4 +1,19 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.6.28
+Date: 2026-09-26
+
+  Bugfixes:
+    - Added a representative spawner icon for capture-spawner technologies without a specific target, keeping the technology list rows aligned.
+
+---------------------------------------------------------------------------------------------------
+Version: 0.6.27
+Date: 2026-09-26
+
+  Bugfixes:
+    - Added the missing fallback text for capture-spawner and other research triggers without a specific target.
+    - Fixed empty trigger tooltips, which could make the tooltip frame appear to lose its top and bottom border.
+
+---------------------------------------------------------------------------------------------------
 Version: 0.6.26
 Date: 2026-09-26
 

@@ -22,6 +22,15 @@ function rqtech.research_trigger(tech)
     return nil
   end
 
+  local function default_description(trigger_type)
+    local locale_key = ({
+      ['capture-spawner'] = 'tech-button-trigger-capture-spawner-any',
+      ['create-space-platform'] = 'tech-button-trigger-create-space-platform',
+      ['scripted'] = 'tech-button-trigger-scripted',
+    })[trigger_type] or 'tech-button-trigger-generic'
+    return {'factorio-research-queue.'..locale_key}
+  end
+
   local function filter_name(value)
     if type(value) == 'string' then
       return value
@@ -49,9 +58,19 @@ function rqtech.research_trigger(tech)
   end
 
   if type(target_name) ~= 'string' then
+    if trigger.type == 'capture-spawner' then
+      return {
+        type = trigger.type,
+        target_type = 'entity',
+        name = 'biter-spawner',
+        sprite = 'entity/biter-spawner',
+        localised_name = {'factorio-research-queue.tech-button-trigger-capture-spawner-any'},
+      }
+    end
+
     return {
       type = trigger.type,
-      description = trigger.trigger_description,
+      description = trigger.trigger_description or default_description(trigger.type),
     }
   end
 
