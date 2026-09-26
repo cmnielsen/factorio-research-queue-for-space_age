@@ -9,12 +9,22 @@ local function build_tech_item_ingredients_flow(player, container, tech)
   local ingredients_flow_size = (64+8*2+8-8) * player.display_scale
   local ingredient_width = 16 * player.display_scale
   local ingredients = {}
-  for _, ingredient in ipairs(tech.tech.research_unit_ingredients) do
+  local research_trigger = rqtech.research_trigger(tech)
+  if research_trigger ~= nil and research_trigger.sprite ~= nil then
     table.insert(ingredients, {
       type = 'sprite',
       style = 'rq_tech_list_item_ingredient',
-      sprite = string.format('%s/%s', ingredient.type or 'item', ingredient.name),
+      sprite = research_trigger.sprite,
+      tooltip = research_trigger.localised_name,
     })
+  else
+    for _, ingredient in ipairs(tech.tech.research_unit_ingredients or {}) do
+      table.insert(ingredients, {
+        type = 'sprite',
+        style = 'rq_tech_list_item_ingredient',
+        sprite = string.format('%s/%s', ingredient.type or 'item', ingredient.name),
+      })
+    end
   end
   local ingredients_spacing = nil
   if #ingredients >= 2 then
@@ -281,7 +291,7 @@ local function build(player, window)
     local ingredients = {}
     for i, tech_ingredient in ipairs(tech_ingredients) do
       local has = false
-      for _, ingredient in ipairs(tech.tech.research_unit_ingredients) do
+      for _, ingredient in ipairs(tech.tech.research_unit_ingredients or {}) do
         if tech_ingredient.name == ingredient.name then
           has = true
           break
@@ -290,6 +300,9 @@ local function build(player, window)
       ingredients[#tech_ingredients+1-i] = has
     end
     return {
+      -- Research-trigger technologies are useful to see, but they are not
+      -- science-pack research and should be grouped after the lab research.
+      rqtech.has_research_trigger(tech) and 1 or 0,
       ingredients,
       tech.research_unit_count,
       tech.tech.order,

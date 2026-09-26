@@ -14,6 +14,70 @@ function rqtech.deinit_force(force)
   storage.rqtechs[force.index] = nil
 end
 
+-- Return the object that makes a technology with a research trigger available.
+-- Technologies using a research trigger do not have a lab science-pack cost.
+function rqtech.research_trigger(tech)
+  local trigger = tech.tech.prototype.research_trigger
+  if trigger == nil then
+    return nil
+  end
+
+  local function filter_name(value)
+    if type(value) == 'string' then
+      return value
+    elseif type(value) == 'table' then
+      return value.name
+    end
+    return nil
+  end
+
+  local target_type
+  local target_name
+  if trigger.type == 'craft-item' or trigger.type == 'send-item-to-orbit' then
+    target_type = 'item'
+    target_name = filter_name(trigger.item)
+  elseif trigger.type == 'craft-fluid' then
+    target_type = 'fluid'
+    target_name = filter_name(trigger.fluid)
+  elseif
+    trigger.type == 'mine-entity' or
+    trigger.type == 'capture-spawner' or
+    trigger.type == 'build-entity'
+  then
+    target_type = 'entity'
+    target_name = filter_name(trigger.entity)
+  end
+
+  if type(target_name) ~= 'string' then
+    return {
+      type = trigger.type,
+      description = trigger.trigger_description,
+    }
+  end
+
+  local prototype
+  if target_type == 'item' then
+    prototype = prototypes.item[target_name]
+  elseif target_type == 'fluid' then
+    prototype = prototypes.fluid[target_name]
+  elseif target_type == 'entity' then
+    prototype = prototypes.entity[target_name]
+  end
+  return {
+    type = trigger.type,
+    target_type = target_type,
+    name = target_name,
+    sprite = target_type..'/'..target_name,
+    localised_name = prototype and prototype.localised_name or target_name,
+    count = trigger.count,
+    amount = trigger.amount,
+  }
+end
+
+function rqtech.has_research_trigger(tech)
+  return tech.tech.prototype.research_trigger ~= nil
+end
+
 -- create rqtech struct: id, tech, level, upgradegroup, infinite, unitcount, prerequisites
 function rqtech.new(tech, level, offset)
   if offset == nil then offset = 0 end

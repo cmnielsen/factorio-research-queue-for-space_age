@@ -1,4 +1,16 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.6.26
+Date: 2026-09-26
+
+  Features:
+    - Moved research-trigger technologies below science-pack technologies in the research list.
+    - Added the correct research trigger name and icon to technology tooltips and list entries.
+
+  Bugfixes:
+    - Fixed research-trigger technologies showing an incorrect zero-cost science-pack requirement.
+    - Made research-trigger handling safe when no lab research ingredients are present.
+
+---------------------------------------------------------------------------------------------------
 Version: 0.6.25
 Date: 2026-09-06
 

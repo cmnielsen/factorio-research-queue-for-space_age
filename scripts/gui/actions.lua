@@ -20,7 +20,7 @@ function actions.init(player)
     local is_tech_ingredient = (function()
       for _, tech in pairs(force.technologies) do
         if tech.enabled then
-          for _, ingredient in pairs(tech.research_unit_ingredients) do
+          for _, ingredient in pairs(tech.research_unit_ingredients or {}) do
             if (ingredient.type == nil or ingredient.type == 'item') and ingredient.name == item.name then
               return true
             end
@@ -206,7 +206,7 @@ function actions.update_techs(player)
     end
 
     local ingredients_filter = filter_data.ingredients
-    for _, ingredient in pairs(tech.tech.research_unit_ingredients) do
+    for _, ingredient in pairs(tech.tech.research_unit_ingredients or {}) do
       if not ingredients_filter[ingredient.name] then
         return false
       end
@@ -514,6 +514,8 @@ function actions.update_etcs(player)
   local tech_ingredient_totals = {}
   for tech in queue.iter(force) do
     local etc_label = gui_data.main.queue.items[tech.id].etc_label
+    local research_unit_energy = tech.tech.research_unit_energy or 0
+    local research_unit_count = tech.research_unit_count or 0
 
     local progress = rqtech.progress(tech)
 
@@ -523,14 +525,14 @@ function actions.update_etcs(player)
     else
       etc = etc +
         (1-progress) *
-        (tech.tech.research_unit_energy/60) *
-        tech.research_unit_count /
+        (research_unit_energy/60) *
+        research_unit_count /
         speed
       etc_text = etc_text..util.format_duration(etc)
     end
     etc_label.caption = etc_text
 
-    for _, ingredient in ipairs(tech.tech.research_unit_ingredients) do
+    for _, ingredient in ipairs(tech.tech.research_unit_ingredients or {}) do
       tech_ingredient_totals[ingredient.name] =
         (tech_ingredient_totals[ingredient.name] or 0) +
         (1-progress) *

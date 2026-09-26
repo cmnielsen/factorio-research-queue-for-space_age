@@ -349,8 +349,8 @@ script.on_nth_tick(research_speed_period, function(event)
             local diff = curr_sample.progress - prev_sample.progress
             speed_estimate = speed_estimate + diff /
               (research_speed_period/60) *
-              (t.research_unit_energy/60) *
-              t.research_unit_count
+              ((t.research_unit_energy or 0)/60) *
+              (t.research_unit_count or 0)
             num_samples = num_samples + 1
           end
         end
