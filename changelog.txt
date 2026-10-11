@@ -1,4 +1,12 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.6.29
+Date: 2026-10-11
+
+  Bugfixes:
+    - Fixed the ASAP and next-in-queue buttons so technologies are inserted at the requested position instead of remaining at the end.
+    - Preserved prerequisite order when moving a technology forward, and kept the active research first when adding the next technology.
+
+---------------------------------------------------------------------------------------------------
 Version: 0.6.28
 Date: 2026-09-26
 

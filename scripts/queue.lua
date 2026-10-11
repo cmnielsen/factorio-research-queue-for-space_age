@@ -218,17 +218,43 @@ local function enqueue_tail(force, queue, tech)
   shift_latest(force, queue, tech)
 end
 
--- enqueue and move to the left
-local function enqueue_head(force, queue, tech)
-  local ret = enqueue(force, queue, tech)
-  shift_earliest(force, queue, tech)
-  return ret
+-- Enqueue a technology at the earliest position allowed by its prerequisites.
+-- first_position is 1 for ASAP, or 2 to keep the active research first.
+local function enqueue_at_position(force, queue, tech, first_position)
+  enqueue(force, queue, tech)
+  local tech_pos = queue_pos(force, queue, tech)
+  if tech_pos == nil then
+    return false
+  end
+
+  -- Do not move the active research out of the head when the user asks for
+  -- the next item after it.
+  if first_position > 1 and tech_pos == 1 then
+    return false
+  end
+
+  table.remove(queue, tech_pos)
+
+  local insert_pos = first_position
+  for _, dependency in pairs(tech.prerequisites) do
+    local dependency_pos = queue_pos(force, queue, dependency)
+    if dependency_pos ~= nil then
+      insert_pos = math.max(insert_pos, dependency_pos + 1)
+    end
+  end
+
+  table.insert(queue, insert_pos, tech)
+  return true
 end
 
--- enqueue and move to the left, ignoring current research
+-- enqueue and move to the front, respecting prerequisites
+local function enqueue_head(force, queue, tech)
+  return enqueue_at_position(force, queue, tech, 1)
+end
+
+-- enqueue as the next item, keeping current research at the head
 local function enqueue_before_head(force, queue, paused, tech)
-  enqueue(force, queue, tech)
-  shift_before_earliest(force, queue, paused, tech)
+  enqueue_at_position(force, queue, tech, paused and 1 or 2)
 end
 
 -- queue iterator
