@@ -1,72 +1,60 @@
+-- GUI styles for the research queue window.
+-- Layout constants and the tech button states below are shared by many styles.
+
 local util = require('util')
 
 local styles = data.raw['gui-style'].default
 
-local tech_list_tech_button_size = 64+8*2+8
-local tech_queue_tech_button_size = 64*4/4+8
+local TECH_LIST_BUTTON_SIZE = 64 + 8 * 2 + 8
+local TECH_QUEUE_BUTTON_SIZE = 64 * 4 / 4 + 8
 
-local function tech_graphical_set(type, opts)
-  local highlighted = opts.highlighted
-  local y = ({
-    available = 136,
-    conditionally_available = 153,
-    unavailable = 170,
-    researched = 187,
-    disabled = 204,
-  })[opts.style]
-  local tint = opts.tint
+---------------------------------------------------------------------------
+-- Tech state graphics (cut from the core gui sprite sheet)
+---------------------------------------------------------------------------
 
-  if y == nil then
-    error('unknown tech_graphical_set style')
+local STATES = {
+  {name = 'available', style = 'available'},
+  {name = 'unavailable', style = 'unavailable'},
+  {name = 'queued', style = 'conditionally_available'},
+  {name = 'queued_head', style = 'conditionally_available', highlighted = true},
+  {name = 'researched', style = 'researched'},
+}
+
+local STATE_ROW = {
+  available = 136,
+  conditionally_available = 153,
+  unavailable = 170,
+  researched = 187,
+}
+
+local function tech_graphical_set(kind, state)
+  local y = STATE_ROW[state.style]
+  local function base(x)
+    return {base = {position = {x, y}, corner_size = 8}, shadow = default_shadow}
   end
 
-  if type == 'button' then
-    local default_graphical_set = {
-      base = {
-        position = {highlighted and 330 or 296, y},
-        corner_size = 8,
-        tint = tint,
-      },
-      shadow = default_shadow,
-    }
-    local other_graphical_set = {
-      base = {
-        position = {312, y},
-        corner_size = 8,
-        tint = tint,
-      },
-      shadow = default_shadow,
-    }
+  if kind == 'button' then
+    local default_set = base(state.highlighted and 330 or 296)
+    local other_set = base(312)
     return {
-      default_graphical_set = default_graphical_set,
-      hovered_graphical_set = other_graphical_set,
-      clicked_graphical_set = other_graphical_set,
-      selected_graphical_set = other_graphical_set,
-      selected_hovered_graphical_set = other_graphical_set,
-      selected_clicked_graphical_set = other_graphical_set,
+      default_graphical_set = default_set,
+      hovered_graphical_set = other_set,
+      clicked_graphical_set = other_set,
+      selected_graphical_set = other_set,
+      selected_hovered_graphical_set = other_set,
+      selected_clicked_graphical_set = other_set,
     }
-  elseif type == 'ingredients' then
-    return {
-      base = {
-        position = {highlighted and 364 or 347, y},
-        corner_size = 8,
-        tint = tint,
-      },
-      shadow = default_shadow,
-    }
-  elseif type == 'level' then
-    return {
-      base = {
-        position = {397, y},
-        corner_size = 8,
-        tint = tint,
-      },
-      shadow = default_shadow,
-    }
-  else
-    error('unknown tech_graphical_set type '..serpent.line(type))
+  elseif kind == 'ingredients' then
+    return base(state.highlighted and 364 or 347)
+  elseif kind == 'level' then
+    return base(397)
   end
+  error('unknown tech graphical set: ' .. tostring(kind))
 end
+
+---------------------------------------------------------------------------
+-- Windows and containers
+---------------------------------------------------------------------------
 
 styles.rq_main_window = {
   type = 'frame_style',
@@ -80,6 +68,11 @@ styles.rq_settings_window = {
   height = 770,
 }
 
+styles.rq_settings_section = {
+  type = 'frame_style',
+  parent = 'inside_shallow_frame_with_padding',
+}
+
 styles.rq_list_box = {
   type = 'scroll_pane_style',
   vertically_stretchable = 'on',
@@ -90,46 +83,13 @@ styles.rq_list_box = {
   },
 }
 
-styles.rq_tech_list_list_box = {
-  type = 'scroll_pane_style',
-  parent = 'rq_list_box',
-  width = 4+7*tech_list_tech_button_size+4+12,
-  background_graphical_set = {
-    position = {282, 17},
-    corner_size = 8,
-    overall_tiling_horizontal_size = tech_list_tech_button_size-8,
-    overall_tiling_horizontal_padding = 8/2,
-    overall_tiling_horizontal_spacing = 8,
-    overall_tiling_vertical_size = tech_list_tech_button_size+4+16+4+40-8,
-    overall_tiling_vertical_padding = 8/2,
-    overall_tiling_vertical_spacing = 8,
-  },
-}
-
-styles.rq_tech_ingredient_filter_table_scroll_box = {
+styles.rq_tech_ingredient_filter_scroll_pane = {
   type = 'scroll_pane_style',
 }
 
-styles.rq_tech_list_search_container = {
-  type = 'horizontal_flow_style',
-  horizontal_align = 'right',
-  horizontally_stretchable = 'on',
-  vertical_align = 'center',
-}
-
-styles.rq_filter_researched_button_enabled = {
-  type = 'button_style',
-  parent = 'green_slot',
-  size = 28,
-  padding = 2,
-}
-
-styles.rq_filter_researched_button_disabled = {
-  type = 'button_style',
-  parent = 'slot',
-  size = 28,
-  padding = 2,
-}
+---------------------------------------------------------------------------
+-- Science pack filter buttons
+---------------------------------------------------------------------------
 
 styles.rq_tech_ingredient_filter_button_enabled = {
   type = 'button_style',
@@ -141,6 +101,26 @@ styles.rq_tech_ingredient_filter_button_disabled = {
   parent = 'slot',
 }
 
+---------------------------------------------------------------------------
+-- Technology list (right side of the window)
+---------------------------------------------------------------------------
+
+styles.rq_tech_list_list_box = {
+  type = 'scroll_pane_style',
+  parent = 'rq_list_box',
+  width = 4 + 7 * TECH_LIST_BUTTON_SIZE + 4 + 12,
+  background_graphical_set = {
+    position = {282, 17},
+    corner_size = 8,
+    overall_tiling_horizontal_size = TECH_LIST_BUTTON_SIZE - 8,
+    overall_tiling_horizontal_padding = 8 / 2,
+    overall_tiling_horizontal_spacing = 8,
+    overall_tiling_vertical_size = TECH_LIST_BUTTON_SIZE + 4 + 16 + 4 + 40 - 8,
+    overall_tiling_vertical_padding = 8 / 2,
+    overall_tiling_vertical_spacing = 8,
+  },
+}
+
 styles.rq_tech_list_table = {
   type = 'table_style',
   horizontally_stretchable = 'off',
@@ -148,90 +128,12 @@ styles.rq_tech_list_table = {
   vertical_spacing = 0,
 }
 
+-- Every cell has a fixed width so no content can widen a column of the table
 styles.rq_tech_list_item = {
   type = 'vertical_flow_style',
   vertical_spacing = 0,
-}
-
-local tech_list_item_available = {style='available'}
-local tech_list_item_unavailable = {style='unavailable'}
-local tech_list_item_queued = {style='conditionally_available'}
-local tech_list_item_queued_head = {style='conditionally_available', highlighted=true}
-local tech_list_item_researched = {style='researched'}
-
-styles.rq_tech_list_item_available_tech_button = util.merge{
-  {
-    type = 'button_style',
-    size = tech_list_tech_button_size,
-  },
-  tech_graphical_set('button', tech_list_item_available),
-}
-
-styles.rq_tech_list_item_unavailable_tech_button = util.merge{
-  {
-    type = 'button_style',
-    size = tech_list_tech_button_size,
-  },
-  tech_graphical_set('button', tech_list_item_unavailable),
-}
-
-styles.rq_tech_list_item_queued_tech_button = util.merge{
-  {
-    type = 'button_style',
-    size = tech_list_tech_button_size,
-  },
-  tech_graphical_set('button', tech_list_item_queued),
-}
-
-styles.rq_tech_list_item_queued_head_tech_button = util.merge{
-  {
-    type = 'button_style',
-    size = tech_list_tech_button_size,
-  },
-  tech_graphical_set('button', tech_list_item_queued_head),
-}
-
-styles.rq_tech_list_item_researched_tech_button = util.merge{
-  {
-    type = 'button_style',
-    size = tech_list_tech_button_size,
-  },
-  tech_graphical_set('button', tech_list_item_researched),
-}
-
-styles.rq_tech_list_item_available_ingredients_bar = {
-  type = 'frame_style',
-  padding = 0,
-  horizontal_flow_style = {
-    type = 'horizontal_flow_style',
-    horizontally_stretchable = 'on',
-    horizontal_align = 'left',
-  },
-  graphical_set = tech_graphical_set('level', tech_list_item_available),
-}
-
-styles.rq_tech_list_item_unavailable_ingredients_bar = {
-  type = 'frame_style',
-  parent = 'rq_tech_list_item_available_ingredients_bar',
-  graphical_set = tech_graphical_set('level', tech_list_item_unavailable),
-}
-
-styles.rq_tech_list_item_queued_ingredients_bar = {
-  type = 'frame_style',
-  parent = 'rq_tech_list_item_available_ingredients_bar',
-  graphical_set = tech_graphical_set('level', tech_list_item_queued),
-}
-
-styles.rq_tech_list_item_queued_head_ingredients_bar = {
-  type = 'frame_style',
-  parent = 'rq_tech_list_item_available_ingredients_bar',
-  graphical_set = tech_graphical_set('level', tech_list_item_queued_head),
-}
-
-styles.rq_tech_list_item_researched_ingredients_bar = {
-  type = 'frame_style',
-  parent = 'rq_tech_list_item_available_ingredients_bar',
-  graphical_set = tech_graphical_set('level', tech_list_item_researched),
+  width = TECH_LIST_BUTTON_SIZE,
+  maximal_width = TECH_LIST_BUTTON_SIZE,
 }
 
 styles.rq_tech_list_item_ingredient = {
@@ -241,43 +143,6 @@ styles.rq_tech_list_item_ingredient = {
   stretch_image_to_widget_size = true,
 }
 
-styles.rq_tech_list_item_available_tool_bar = {
-  type = 'frame_style',
-  padding = 0,
-  top_padding = 4,
-  bottom_padding = 4,
-  horizontal_flow_style = {
-    type = 'horizontal_flow_style',
-    horizontally_stretchable = 'on',
-    horizontal_align = 'center',
-  },
-  graphical_set = tech_graphical_set('ingredients', tech_list_item_available),
-}
-
-styles.rq_tech_list_item_queued_tool_bar = {
-  type = 'frame_style',
-  parent = 'rq_tech_list_item_available_tool_bar',
-  graphical_set = tech_graphical_set('ingredients', tech_list_item_queued),
-}
-
-styles.rq_tech_list_item_queued_head_tool_bar = {
-  type = 'frame_style',
-  parent = 'rq_tech_list_item_available_tool_bar',
-  graphical_set = tech_graphical_set('ingredients', tech_list_item_queued_head),
-}
-
-styles.rq_tech_list_item_unavailable_tool_bar = {
-  type = 'frame_style',
-  parent = 'rq_tech_list_item_available_tool_bar',
-  graphical_set = tech_graphical_set('ingredients', tech_list_item_unavailable),
-}
-
-styles.rq_tech_list_item_researched_tool_bar = {
-  type = 'frame_style',
-  parent = 'rq_tech_list_item_available_tool_bar',
-  graphical_set = tech_graphical_set('ingredients', tech_list_item_researched),
-}
-
 styles.rq_tech_list_item_tool_button = {
   type = 'button_style',
   parent = 'tool_button',
@@ -285,15 +150,66 @@ styles.rq_tech_list_item_tool_button = {
   padding = 0,
 }
 
-local tech_queue_item_inner_width = tech_queue_tech_button_size+8+16
-local tech_queue_item_width = 2+4+tech_queue_item_inner_width+4+2
-local tech_queue_item_inner_height = tech_queue_tech_button_size+4+20
-local tech_queue_item_height = 2+4+tech_queue_item_inner_height+4+2
+-- Bars shared by all tech states; the state variants only change the graphics
+styles.rq_tech_list_item_ingredients_bar = {
+  type = 'frame_style',
+  padding = 0,
+  maximal_width = TECH_LIST_BUTTON_SIZE,
+  horizontal_flow_style = {
+    type = 'horizontal_flow_style',
+    horizontally_stretchable = 'on',
+    horizontal_align = 'left',
+  },
+}
+
+styles.rq_tech_list_item_tool_bar = {
+  type = 'frame_style',
+  padding = 0,
+  maximal_width = TECH_LIST_BUTTON_SIZE,
+  top_padding = 4,
+  bottom_padding = 4,
+  horizontal_flow_style = {
+    type = 'horizontal_flow_style',
+    horizontally_stretchable = 'on',
+    horizontal_align = 'center',
+  },
+}
+
+-- One variant of button / ingredients bar / tool bar per tech state
+for _, state in ipairs(STATES) do
+  local prefix = 'rq_tech_list_item_' .. state.name
+
+  styles[prefix .. '_tech_button'] = util.merge{
+    {type = 'button_style', size = TECH_LIST_BUTTON_SIZE},
+    tech_graphical_set('button', state),
+  }
+
+  styles[prefix .. '_ingredients_bar'] = {
+    type = 'frame_style',
+    parent = 'rq_tech_list_item_ingredients_bar',
+    graphical_set = tech_graphical_set('level', state),
+  }
+
+  styles[prefix .. '_tool_bar'] = {
+    type = 'frame_style',
+    parent = 'rq_tech_list_item_tool_bar',
+    graphical_set = tech_graphical_set('ingredients', state),
+  }
+end
+
+---------------------------------------------------------------------------
+-- Queue (left side of the window)
+---------------------------------------------------------------------------
+
+local QUEUE_ITEM_INNER_WIDTH = TECH_QUEUE_BUTTON_SIZE + 8 + 16
+local QUEUE_ITEM_WIDTH = 2 + 4 + QUEUE_ITEM_INNER_WIDTH + 4 + 2
+local QUEUE_ITEM_INNER_HEIGHT = TECH_QUEUE_BUTTON_SIZE + 4 + 20
+local QUEUE_ITEM_HEIGHT = 2 + 4 + QUEUE_ITEM_INNER_HEIGHT + 4 + 2
 
 styles.rq_tech_queue_head_frame = {
   type = 'frame_style',
-  width = 4+tech_queue_item_width+4,
-  height = 4+tech_queue_item_height+4,
+  width = 4 + QUEUE_ITEM_WIDTH + 4,
+  height = 4 + QUEUE_ITEM_HEIGHT + 4,
   padding = 0,
   horizontal_flow_style = {
     type = 'horizontal_flow_style',
@@ -306,20 +222,20 @@ styles.rq_tech_queue_head_frame = {
   background_graphical_set = {
     position = {282, 17},
     corner_size = 8,
-    overall_tiling_horizontal_size = tech_queue_item_width,
+    overall_tiling_horizontal_size = QUEUE_ITEM_WIDTH,
     overall_tiling_horizontal_padding = 4,
-    overall_tiling_vertical_size = tech_queue_item_height,
+    overall_tiling_vertical_size = QUEUE_ITEM_HEIGHT,
     overall_tiling_vertical_padding = 4,
     overall_tiling_vertical_spacing = 4,
   },
 }
 
 styles.rq_tech_queue_item_paused = {
-    type = 'horizontal_flow_style',
-    horizontally_stretchable = 'on',
-    height = tech_queue_item_height,
-    horizontal_align = 'center',
-    vertical_align = 'center',
+  type = 'horizontal_flow_style',
+  horizontally_stretchable = 'on',
+  height = QUEUE_ITEM_HEIGHT,
+  horizontal_align = 'center',
+  vertical_align = 'center',
 }
 
 styles.rq_tech_queue_item_paused_unpause_button = {
@@ -330,12 +246,12 @@ styles.rq_tech_queue_item_paused_unpause_button = {
 styles.rq_tech_queue_list_box = {
   type = 'scroll_pane_style',
   parent = 'rq_list_box',
-  width = 4+tech_queue_item_width+4+12,
+  width = 4 + QUEUE_ITEM_WIDTH + 4 + 12,
   background_graphical_set = {
     position = {282, 17},
     corner_size = 8,
-    overall_tiling_horizontal_size = tech_queue_item_width,
-    overall_tiling_vertical_size = tech_queue_item_height,
+    overall_tiling_horizontal_size = QUEUE_ITEM_WIDTH,
+    overall_tiling_vertical_size = QUEUE_ITEM_HEIGHT,
     overall_tiling_vertical_spacing = 4,
   },
 }
@@ -356,21 +272,13 @@ styles.rq_tech_queue_item_inner_flow = {
 }
 
 styles.rq_tech_queue_item_tech_button = util.merge{
-  {
-    type = 'button_style',
-    size = tech_queue_tech_button_size,
-    padding = 0,
-  },
-  tech_graphical_set('button', tech_list_item_queued),
+  {type = 'button_style', size = TECH_QUEUE_BUTTON_SIZE, padding = 0},
+  tech_graphical_set('button', STATES[3]),
 }
 
 styles.rq_tech_queue_head_item_tech_button = util.merge{
-  {
-    type = 'button_style',
-    size = tech_queue_tech_button_size,
-    padding = 0,
-  },
-  tech_graphical_set('button', tech_list_item_queued_head),
+  {type = 'button_style', size = TECH_QUEUE_BUTTON_SIZE, padding = 0},
+  tech_graphical_set('button', STATES[4]),
 }
 
 styles.rq_tech_queue_item_buttons = {
@@ -386,61 +294,36 @@ styles.rq_tech_queue_item_close_button = {
   parent = 'mini_button',
 }
 
-styles.rq_tech_queue_item_shift_up_button = {
-  type = 'button_style',
-  size = {8, 8},
-  padding = 0,
-  default_graphical_set = {
-    filename = '__core__/graphics/arrows/table-header-sort-arrow-up-active.png',
-    size = {16, 16},
-    scale = 0.5
-  },
-  hovered_graphical_set = {
-    filename = '__core__/graphics/arrows/table-header-sort-arrow-up-hover.png',
-    size = {16, 16},
-    scale = 0.5
-  },
-  clicked_graphical_set = {
-    filename = '__core__/graphics/arrows/table-header-sort-arrow-up-active.png',
-    size = {16, 16},
-    scale = 0.5
-  },
-  disabled_graphical_set = util.empty_sprite(),
-}
+-- Small arrow buttons that move a technology up or down in the queue
+local function arrow_button(direction)
+  local path = '__core__/graphics/arrows/table-header-sort-arrow-' .. direction
+  local function sprite(suffix)
+    return {filename = path .. suffix .. '.png', size = {16, 16}, scale = 0.5}
+  end
+  return {
+    type = 'button_style',
+    size = {8, 8},
+    padding = 0,
+    default_graphical_set = sprite('-active'),
+    hovered_graphical_set = sprite('-hover'),
+    clicked_graphical_set = sprite('-active'),
+    disabled_graphical_set = util.empty_sprite(),
+  }
+end
 
-styles.rq_tech_queue_item_shift_down_button = {
-  type = 'button_style',
-  size = {8, 8},
-  padding = 0,
-  default_graphical_set = {
-    filename = '__core__/graphics/arrows/table-header-sort-arrow-down-active.png',
-    size = {16, 16},
-    scale = 0.5
-  },
-  hovered_graphical_set = {
-    filename = '__core__/graphics/arrows/table-header-sort-arrow-down-hover.png',
-    size = {16, 16},
-    scale = 0.5
-  },
-  clicked_graphical_set = {
-    filename = '__core__/graphics/arrows/table-header-sort-arrow-down-active.png',
-    size = {16, 16},
-    scale = 0.5
-  },
-  disabled_graphical_set = util.empty_sprite(),
-}
+styles.rq_tech_queue_item_shift_up_button = arrow_button('up')
+styles.rq_tech_queue_item_shift_down_button = arrow_button('down')
 
 styles.rq_etc_label = {
   type = 'label_style',
   parent = 'label',
   font = 'count-font',
-  maximal_width = tech_queue_tech_button_size,
+  maximal_width = TECH_QUEUE_BUTTON_SIZE,
 }
 
-styles.rq_settings_section = {
-  type = 'frame_style',
-  parent = 'inside_shallow_frame_with_padding',
-}
+---------------------------------------------------------------------------
+-- Tech button containers and progress bars (list and queue variants)
+---------------------------------------------------------------------------
 
 styles.rq_tech_button_container = {
   type = 'vertical_flow_style',
@@ -452,13 +335,13 @@ styles.rq_tech_button_container = {
 styles.rq_tech_button_container_tech_list = {
   type = 'vertical_flow_style',
   parent = 'rq_tech_button_container',
-  height = tech_list_tech_button_size,
+  height = TECH_LIST_BUTTON_SIZE,
 }
 
 styles.rq_tech_button_container_tech_queue = {
   type = 'vertical_flow_style',
   parent = 'rq_tech_button_container',
-  height = tech_queue_tech_button_size,
+  height = TECH_QUEUE_BUTTON_SIZE,
 }
 
 styles.rq_tech_button_progressbar = {
@@ -472,45 +355,31 @@ styles.rq_tech_button_progressbar = {
 styles.rq_tech_button_progressbar_tech_list = {
   type = 'progressbar_style',
   parent = 'rq_tech_button_progressbar',
-  top_margin = -tech_list_tech_button_size,
+  top_margin = -TECH_LIST_BUTTON_SIZE,
 }
 
 styles.rq_tech_button_progressbar_tech_queue = {
   type = 'progressbar_style',
   parent = 'rq_tech_button_progressbar',
-  top_margin = -tech_queue_tech_button_size,
+  top_margin = -TECH_QUEUE_BUTTON_SIZE,
 }
 
-styles.rq_frame_action_button_red = {
-  type = 'button_style',
-  parent = 'frame_action_button',
-  default_graphical_set = {
-    base = {position = {272, 169}, corner_size = 8},
-    shadow = default_shadow,
-  },
-  hovered_graphical_set = {
-    base = {position = {369, 169}, corner_size = 8},
-    shadow = default_shadow,
-  },
-  clicked_graphical_set = {
-    base = {position = {369, 169}, corner_size = 8},
-    shadow = default_shadow,
-  },
-}
+---------------------------------------------------------------------------
+-- Titlebar action buttons
+---------------------------------------------------------------------------
 
-styles.rq_frame_action_button_green = {
-  type = 'button_style',
-  parent = 'frame_action_button',
-  default_graphical_set = {
-    base = {position = {272, 186}, corner_size = 8},
-    shadow = default_shadow,
-  },
-  hovered_graphical_set = {
-    base = {position = {369, 186}, corner_size = 8},
-    shadow = default_shadow,
-  },
-  clicked_graphical_set = {
-    base = {position = {369, 186}, corner_size = 8},
-    shadow = default_shadow,
-  },
-}
+local function action_button(row)
+  local function set(x)
+    return {base = {position = {x, row}, corner_size = 8}, shadow = default_shadow}
+  end
+  return {
+    type = 'button_style',
+    parent = 'frame_action_button',
+    default_graphical_set = set(272),
+    hovered_graphical_set = set(369),
+    clicked_graphical_set = set(369),
+  }
+end
+
+styles.rq_frame_action_button_red = action_button(169)
+styles.rq_frame_action_button_green = action_button(186)

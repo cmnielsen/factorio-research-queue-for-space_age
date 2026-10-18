@@ -1,3 +1,4 @@
+-- Keyboard shortcuts
 data:extend{
   {
     type = 'custom-input',

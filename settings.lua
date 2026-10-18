@@ -1,32 +1,16 @@
 data:extend{
   {
     type = 'bool-setting',
-    name = 'rq-notifications',
-    order = 'a',
-    setting_type = 'runtime-per-user',
-    default_value = true,
-  },
-  {
-    type = 'bool-setting',
     name = 'rq-pause-game',
-    order = 'b',
+    order = 'a',
     setting_type = 'runtime-per-user',
     default_value = false,
   },
   {
-    type = 'string-setting',
-    name = 'rq-sync',
+    type = 'bool-setting',
+    name = 'rq-mirror-vanilla-queue',
     order = 'a',
     setting_type = 'runtime-global',
-    default_value = 'hybrid',
-    allowed_values = {
-      'disabled',
-      'sync',
-      'wait',
-      'freeze',
-      'move-head',
-      'move-tail',
-      'hybrid'
-    }
-  }
+    default_value = true,
+  },
 }

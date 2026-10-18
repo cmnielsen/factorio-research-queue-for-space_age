@@ -1,626 +1,430 @@
-local rqtech = require('.rqtech')
-local util = require('.util')
+-- The extended research queue.
+--
+-- Per force, storage.forces[force.index] holds:
+--   queue    array of rqtech ids; dependencies always come before dependents
+--   paused   true while the queue is not driving research
+--   mirrored ids that were last seen in the vanilla research queue
+--   samples, speed   research speed estimate (see scripts/speed.lua)
+--
+-- With "mirror" enabled the first MIRROR_SIZE queue entries are copied into the
+-- vanilla research queue, and changes made in the vanilla queue are read back.
+-- With mirror disabled the queue is only a planning list and vanilla is untouched.
 
--- initialisation
-local function new(force, paused)
-  local queue = {}
-  storage.forces[force.index].queue = queue
-  storage.forces[force.index].queue_paused = paused
+local rqtech = require('scripts.rqtech')
+
+local queue = {}
+
+local MIRROR_SIZE = 4 -- queue entries mirrored into the vanilla queue
+local pushing = false -- true while this mod writes the vanilla queue
+
+---------------------------------------------------------------------------
+-- Helpers
+---------------------------------------------------------------------------
+
+local function data_of(force)
+  return storage.forces[force.index]
 end
 
--- move q[i] to [j] and shift intervening items
-local function rotate(force, queue, i, j)
-  if i == j then return end
-  local dir = i < j and 1 or -1
-  local tmp = queue[i]
-  local k = i
-  while k*dir < j*dir do
-    queue[k] = queue[k+dir]
-    k = k+dir
-  end
-  queue[j] = tmp
+local function mirror_enabled()
+  return settings.global['rq-mirror-vanilla-queue'].value
 end
 
-local function is_researchable(force, queue, tech)
-  return
-    not tech.tech.prototype.hidden and
-    tech.tech.enabled and
-    not rqtech.is_researched(tech)
-end
-
-local function is_dependency(force, queue, dependency, tech)
-  return is_researchable(force, queue, dependency) and tech.prerequisites[dependency.tech.name] ~= nil
-end
-
-local function is_dependent(force, queue, dependent, tech)
-  return is_researchable(force, queue, dependent) and is_dependency(force, queue, tech, dependent)
-end
-
--- returns all dependencies
-local function tech_dependencies(force, queue, tech)
-  return util.iter_filter(
-    util.iter_values(tech.prerequisites),
-    function(dependency)
-      return is_researchable(force, queue, dependency)
-    end)
-end
-
--- returns all techs that depend on <tech>
-local function tech_dependents(force, queue, tech)
-  local deps
-  if tech.infinite and tech.level < tech.tech.prototype.max_level then
-    deps = util.iter_once(rqtech.new(tech.tech, tech.level + 1))
-  else
-    deps = rqtech.iter(force)
-  end
-  return util.iter_filter(
-    deps,
-    function(depdendent)
-      return is_dependent(force, queue, depdendent, tech)
-    end)
-end
-
--- where is a tech in queue
-local function queue_pos(force, queue, tech)
-  for idx, queued_tech in ipairs(queue) do
-    if queued_tech.id == tech.id then
-      return idx
+local function index_of(list, id)
+  for i, value in ipairs(list) do
+    if value == id then
+      return i
     end
   end
   return nil
 end
 
--- is tech first item in queue
-local function is_head(force, queue, tech, ignore_level)
-  if queue[1] == nil then
+local function to_set(list)
+  local set = {}
+  for _, value in ipairs(list) do
+    set[value] = true
+  end
+  return set
+end
+
+local function same_list(a, b)
+  if #a ~= #b then
     return false
   end
-  if ignore_level then
-    return queue[1].tech.name == tech.tech.name
-  else
-    return queue[1].id == tech.id
-  end
-end
-
-local function get_head(force, queue)
-  return queue[1]
-end
-
-local function in_queue(force, queue, tech)
-  for _, queued_tech in ipairs(queue) do
-    if queued_tech.id == tech.id then
-      return true
+  for i = 1, #a do
+    if a[i] ~= b[i] then
+      return false
     end
   end
-  return false
-end
-
--- enqueue all necessary techs
-local function enqueue(force, queue, tech)
-  if not in_queue(force, queue, tech) then
-    for dependency in tech_dependencies(force, queue, tech) do
-      enqueue(force, queue, dependency)
-    end
-
-    table.insert(queue, tech)
-    return true
-  end
-  return false
-end
-
--- dequeue tech and all dependents
-local function dequeue(force, queue, tech)
-  if in_queue(force, queue, tech) then
-    for dependent in tech_dependents(force, queue, tech) do
-      dequeue(force, queue, dependent)
-    end
-
-    for idx, queued_tech in ipairs(queue) do
-      if queued_tech.id == tech.id then
-        table.remove(queue, idx)
-        break
-      end
-    end
-  end
-end
-
--- is tech dependency of queue[from...to]
-local function is_depdendency_of_any(force, queue, tech, from_pos, to_pos)
-  for i = from_pos,to_pos do
-    if is_dependency(force, queue, tech, queue[i]) then
-      return true
-    end
-  end
-  return false
-end
-
--- is tech dependent of queue[from...to]
-local function is_depdendent_of_any(force, queue, tech, from_pos, to_pos)
-  for i = from_pos,to_pos do
-    if is_dependent(force, queue, tech, queue[i]) then
-      return true
-    end
-  end
-  return false
-end
-
--- search for a tech that could be moved before <tech>
-local function try_shift_later(force, queue, tech)
-  local tech_pos = queue_pos(force, queue, tech)
-  local pivot_pos = tech_pos + 1
-  if pivot_pos > #queue then
-    return nil
-  end
-  while is_depdendent_of_any(force, queue, queue[pivot_pos], tech_pos, pivot_pos) do
-    pivot_pos = pivot_pos + 1
-    if pivot_pos > #queue then
-      return nil
-    end
-  end
-  return pivot_pos, tech_pos
-end
-
--- move earliest independent tech in front of <tech>
-local function shift_later(force, queue, tech)
-  local pivot_pos, tech_pos = try_shift_later(force, queue, tech)
-  if pivot_pos ~= nil then
-    rotate(force, queue, pivot_pos, tech_pos)
-    return true
-  end
-  return false
-end
-
--- search for latest independent tech that could be moved behind <tech>
-local function try_shift_earlier(force, queue, tech, head)
-  head = head or 1
-  local tech_pos = queue_pos(force, queue, tech)
-  local pivot_pos = tech_pos - 1
-  if pivot_pos < head then
-    return nil
-  end
-  while is_depdendency_of_any(force, queue, queue[pivot_pos], pivot_pos, tech_pos) do
-    pivot_pos = pivot_pos - 1
-    if pivot_pos < head then
-      return nil
-    end
-  end
-  return pivot_pos, tech_pos
-end
-
--- move latest independent tech behind <tech>
-local function shift_earlier(force, queue, tech, head)
-  local pivot_pos, tech_pos = try_shift_earlier(force, queue, tech, head)
-  if pivot_pos ~= nil then
-    rotate(force, queue, pivot_pos, tech_pos)
-    return true
-  end
-  return false
-end
-
--- move to the right as far as possible
-local function shift_latest(force, queue, tech)
-  while shift_later(force, queue, tech) do end
-end
-
--- move to the left as far as possible
-local function shift_earliest(force, queue, tech)
-  while shift_earlier(force, queue, tech) do end
-end
-
--- move to the left as far as possible, but keep current
-local function shift_before_earliest(force, queue, paused, tech)
-  while shift_earlier(force, queue, tech, paused and 1 or 2) do end
-end
-
--- enqueue and move to the right
-local function enqueue_tail(force, queue, tech)
-  enqueue(force, queue, tech)
-  shift_latest(force, queue, tech)
-end
-
--- Enqueue a technology at the earliest position allowed by its prerequisites.
--- first_position is 1 for ASAP, or 2 to keep the active research first.
-local function enqueue_at_position(force, queue, tech, first_position)
-  enqueue(force, queue, tech)
-  local tech_pos = queue_pos(force, queue, tech)
-  if tech_pos == nil then
-    return false
-  end
-
-  -- Do not move the active research out of the head when the user asks for
-  -- the next item after it.
-  if first_position > 1 and tech_pos == 1 then
-    return false
-  end
-
-  table.remove(queue, tech_pos)
-
-  local insert_pos = first_position
-  for _, dependency in pairs(tech.prerequisites) do
-    local dependency_pos = queue_pos(force, queue, dependency)
-    if dependency_pos ~= nil then
-      insert_pos = math.max(insert_pos, dependency_pos + 1)
-    end
-  end
-
-  table.insert(queue, insert_pos, tech)
   return true
 end
 
--- enqueue and move to the front, respecting prerequisites
-local function enqueue_head(force, queue, tech)
-  return enqueue_at_position(force, queue, tech, 1)
-end
-
--- enqueue as the next item, keeping current research at the head
-local function enqueue_before_head(force, queue, paused, tech)
-  enqueue_at_position(force, queue, tech, paused and 1 or 2)
-end
-
--- queue iterator
-local function iter(force, queue)
-  return util.iter_list(queue)
-end
-
--- clear all after current research
-local function clear(force, force_data)
-  if force_data.queue_paused then
-    force_data.queue = {}
-  else
-    local head = force_data.queue[1]
-    force_data.queue = {head}
+-- True if the item `dependent` directly requires the item `dependency`.
+local function depends_on(force, dependent_id, dependency_id)
+  local dependent = rqtech.from_id(force, dependent_id)
+  local dependency = rqtech.from_id(force, dependency_id)
+  if not dependent or not dependency then
+    return false
   end
-  return force_data.queue
+  local prerequisite = dependent.prerequisites[dependency.tech.name]
+  return prerequisite ~= nil and prerequisite.id == dependency.id
 end
 
-local function set_queue(force, target)
-  force.research_queue = target
+-- Moves list[from] to position `to`; the items in between shift by one.
+local function rotate(list, from, to)
+  table.insert(list, to, table.remove(list, from))
 end
 
-local function count_prev(rq, id)
-  local j = 0
-  for k=1, id-1 do
-    if rq[id].name == rq[k].name then
-      j = j+1
+-- Collects an rqtech and its unresearched prerequisites, dependencies first.
+local function collect(rt, block, seen)
+  if seen[rt.id] then
+    return
+  end
+  seen[rt.id] = true
+  for _, prerequisite in ipairs(rqtech.sorted_prerequisites(rt)) do
+    if rqtech.is_researchable(prerequisite) then
+      collect(prerequisite, block, seen)
     end
   end
-  return j
+  block[#block + 1] = rt.id
 end
 
-local function count_after(rq, id)
-  local j = 0
-  for k=#rq,id+1,-1 do
-    if rq[id].name == rq[k].name then
-      j=j+1
-    end
-  end
-  return j
+---------------------------------------------------------------------------
+-- Force data
+---------------------------------------------------------------------------
+
+function queue.init_force(force)
+  storage.forces[force.index] = {queue = {}, paused = true, mirrored = {}, samples = {}, speed = 0}
+  queue.pull(force) -- adopt research that is already queued in the vanilla queue
 end
 
-local function queues_identical(force, queue, n)
-  if n == nil then n = 7 end
-  local rq = force.research_queue
-  local flag = true
-  for i=1, n do
-    if force.research_queue[i] ~= nil and queue[i] ~= nil then
-      if force.research_queue[i].name ~= queue[i].tech.name then
-        flag = false
+function queue.remove_force(force_index)
+  storage.forces[force_index] = nil
+  rqtech.drop_force(force_index)
+end
+
+function queue.has_force(force)
+  return storage.forces[force.index] ~= nil
+end
+
+---------------------------------------------------------------------------
+-- Queries
+---------------------------------------------------------------------------
+
+function queue.ids(force)
+  return data_of(force).queue
+end
+
+function queue.contains(force, id)
+  return index_of(data_of(force).queue, id) ~= nil
+end
+
+function queue.is_paused(force)
+  return data_of(force).paused and mirror_enabled()
+end
+
+-- The head of the queue is the active research, unless the queue is paused.
+function queue.is_head(force, id)
+  return not queue.is_paused(force) and data_of(force).queue[1] == id
+end
+
+function queue.set_paused(force, paused)
+  data_of(force).paused = paused
+end
+
+---------------------------------------------------------------------------
+-- Moving items (a move never separates an item from its prerequisites)
+---------------------------------------------------------------------------
+
+-- Position of the item that swaps with list[index] when moving it earlier.
+local function earlier_pivot(force, list, index, first)
+  local pivot = index - 1
+  while pivot >= first do
+    local blocked = false
+    for i = pivot + 1, index do
+      if depends_on(force, list[i], list[pivot]) then
+        blocked = true
         break
       end
-    elseif force.research_queue[i] ~= nil or queue[i] ~= nil then
-      flag = false
-      break
-    else
-      break
     end
+    if not blocked then
+      return pivot
+    end
+    pivot = pivot - 1
   end
-  return flag
+  return nil
 end
 
-local function update(force, queue, paused, mode)
-  if mode == nil then
-    mode = 0
-  end
-  -- remove invalid/researched techs
-  local to_dequeue = {}
-  for _, tech in ipairs(queue) do
-    if not is_researchable(force, queue, tech) then
-      table.insert(to_dequeue, tech)
+-- Position of the item that swaps with list[index] when moving it later.
+local function later_pivot(force, list, index)
+  local pivot = index + 1
+  while pivot <= #list do
+    local blocked = false
+    for i = index, pivot - 1 do
+      if depends_on(force, list[pivot], list[i]) then
+        blocked = true
+        break
+      end
     end
+    if not blocked then
+      return pivot
+    end
+    pivot = pivot + 1
   end
-  for _, tech in ipairs(to_dequeue) do
-    dequeue(force, queue, tech)
-  end
-  -- process newly started tech
-  if mode==2 then
-    storage.forces[force.index].queue_paused = false
-    local tech = rqtech.new(force.research_queue[1], "current")
-    enqueue_head(force, queue, tech)
-  end
+  return nil
+end
 
-  -- research_queue_enabled removed in Factorio 2.0; queue is always enabled
-  if true then
-    if settings.global['rq-sync'].value == 'disabled' then
+function queue.can_shift(force, id, direction)
+  local list = data_of(force).queue
+  local index = index_of(list, id)
+  if not index then
+    return false
+  end
+  if direction == 'up' then
+    return earlier_pivot(force, list, index, 1) ~= nil
+  end
+  return later_pivot(force, list, index) ~= nil
+end
+
+-- Moves an item one step (or as far as possible when `far` is set) up or down.
+-- Moving far up leaves the active research in place.
+function queue.shift(force, id, direction, far)
+  local list = data_of(force).queue
+  local first = far and (queue.is_paused(force) and 1 or 2) or 1
+  repeat
+    local index = index_of(list, id)
+    if not index then
       return
     end
-    if settings.global['rq-sync'].value == 'sync' then
-      if mode == 0 then
-        local rq = {}
-        for i=1,7 do
-          if queue[i] == nil then break end
-          table.insert(rq, queue[i].tech)
-        end
-        set_queue(force, rq)
-      elseif mode == 1 then
-        local rq = force.research_queue
-        if queues_identical(force, queue, #rq) and queue[7] then
-          table.insert(rq, queue[7].tech)
-          set_queue(force, rq)
-        end
-      elseif mode == 2 and paused then
-        local rq = {}
-        for i=1,7 do
-          if queue[i] == nil then break end
-          table.insert(rq, queue[i].tech)
-        end
-        set_queue(force, rq)
-      elseif mode == 3 then
-        if #queue > 7 then
-          local rq = force.research_queue
-          if queues_identical(force, queue) then return end
-          local removed = {}
-          if #force.research_queue < 7 and #force.research_queue < #queue then
-            for i=1,7 do
-              if queue[i] == nil then break end
-              local present = false
-              for j=1,#force.research_queue do
-                if queue[i].tech.name == force.research_queue[j].name then
-                  present = true
-                  break
-                end
-              end
-              if not present then table.insert(removed, queue[i]) end
-            end
-          end
-          local new = 0
-          for i=#rq, 1, -1 do
-            new = new + (enqueue_head(force, queue, rqtech.new(rq[i], 'current', count_prev(rq, i))) and 1 or 0)
-          end
-          if new == 0 then
-            for _,tech in ipairs(removed) do
-              dequeue(force, queue, tech)
-            end
-          end
-          rq = {}
-          for i=1,7 do
-            if queue[i] == nil then break end
-            table.insert(rq, queue[i].tech)
-          end
-          set_queue(force, rq)
-        else
-          queue = clear(force, storage.forces[force.index])
-          local rq = force.research_queue
-          for i=1, #rq do
-            enqueue_tail(force, queue, rqtech.new(rq[i], 'current', count_prev(rq, i)))
-          end
-        end
-      elseif mode == 4 then
-        if paused then
-          set_queue(force, {})
-        else
-          local rq = {}
-          for i=1,7 do
-            if queue[i] == nil then break end
-            table.insert(rq, queue[i].tech)
-          end
-          set_queue(force, rq)
-        end
-      end
-    elseif settings.global['rq-sync'].value == 'hybrid' then
-      if mode==0 or mode==1 or (mode==2 and paused) then
-        local rq={}
-        for i=1,4 do
-          if queue[i] == nil then break end
-          table.insert(rq, queue[i].tech)
-        end
-        set_queue(force, rq)
-      elseif mode==3 then
-        local old4 = {}
-        for i=1,4 do
-          if queue[i] == nil then break end
-          table.insert(old4, queue[i])
-        end
-        local rq = force.research_queue
-        for i=#rq,1,-1 do
-          enqueue_head(force, queue, rqtech.new(rq[i], "current", count_prev(rq, i)))
-        end
-        local dq = {}
-        for i=1,#old4 do
-          local found = false
-          for j=1, #rq do
-            if old4[i].tech.name == rq[j].name then
-              found = true
-              break
-            end
-          end
-          if not found then table.insert(dq, old4[i]) end
-        end
-        for _, tech in ipairs(dq) do
-          dequeue(force, queue, tech)
-        end
-        for i=#rq,5,-1 do
-          table.remove(rq)
-        end
-        set_queue(force, rq)
-      elseif mode==4 then
-        if paused then
-          set_queue(force, {})
-        else
-          local rq = {}
-          for i=1,4 do
-            if queue[i] == nil then break end
-            table.insert(rq, queue[i].tech)
-          end
-          set_queue(force, rq)
-        end
-      end
-    elseif settings.global['rq-sync'].value == 'wait' then
-      if #force.research_queue == 0 and not paused and next(queue) ~= nil then
-        set_queue(force, {queue[1].tech})
-      end
-    elseif settings.global['rq-sync'].value == 'freeze' then
-      if #queue == 0 or paused then return end
-      if mode == 0 then
-        local rq = force.research_queue
-        rq[1] = queue[1].tech
-        set_queue(force, rq)
-      elseif mode==1 then
-        if queue[1].tech.name ~= force.research_queue[1].name then
-          local rq = {queue[1].tech}
-          for _,tech in ipairs(force.research_queue) do
-            table.insert(rq, tech)
-          end
-          set_queue(force, rq)
-        end
-      end
-    elseif settings.global['rq-sync'].value == 'move-head' or settings.global['rq-sync'].value == 'move-tail' then
-      if mode==2 then return end
-      local rq = force.research_queue
-      if mode == 3 and #rq > 1 then
-        if settings.global['rq-sync'].value == 'move-head' then
-          for i=#rq,1,-1 do
-            enqueue_head(force, queue, rqtech.new(rq[i], 'current', count_prev(rq, i)))
-          end
-        else
-          for i=1, #rq do
-            enqueue_tail(force, queue, rqtech.new(rq[i], 'current', count_prev(rq, i)))
+    local pivot
+    if direction == 'up' then
+      pivot = earlier_pivot(force, list, index, first)
+    else
+      pivot = later_pivot(force, list, index)
+    end
+    if pivot then
+      rotate(list, pivot, index)
+    end
+  until not far or not pivot
+end
+
+---------------------------------------------------------------------------
+-- Adding and removing
+---------------------------------------------------------------------------
+
+-- Adds a technology (with missing prerequisites) at the end of the queue.
+function queue.enqueue_last(force, rt)
+  local data = data_of(force)
+  local list = data.queue
+  local present = to_set(list)
+  local block = {}
+  collect(rt, block, {})
+  for _, id in ipairs(block) do
+    if not present[id] then
+      list[#list + 1] = id
+    end
+  end
+  queue.shift(force, rt.id, 'down', true)
+  data.paused = false
+end
+
+-- Puts a technology and its prerequisites at the front of the queue. With
+-- `after_head` the active research stays first; otherwise the technology is
+-- researched as soon as possible.
+function queue.enqueue_front(force, rt, after_head)
+  local data = data_of(force)
+  local list = data.queue
+  local first = (after_head and not queue.is_paused(force)) and 2 or 1
+
+  local block, in_block = {}, {}
+  collect(rt, block, in_block)
+
+  -- Entries before `first` (the active research) are never moved
+  local protected = {}
+  for i = 1, math.min(first - 1, #list) do
+    protected[list[i]] = true
+  end
+  data.paused = false
+  if protected[rt.id] then
+    return
+  end
+
+  local rest = {}
+  for i, id in ipairs(list) do
+    if i < first or not in_block[id] then
+      rest[#rest + 1] = id
+    end
+  end
+  local position = math.min(first, #rest + 1)
+  for _, id in ipairs(block) do
+    if not protected[id] then
+      table.insert(rest, position, id)
+      position = position + 1
+    end
+  end
+  data.queue = rest
+end
+
+-- Removes a technology and everything in the queue that depends on it.
+function queue.dequeue(force, id)
+  local data = data_of(force)
+  local removed = {[id] = true}
+  local result = {}
+  for _, queued_id in ipairs(data.queue) do
+    local keep = not removed[queued_id]
+    if keep then
+      local rt = rqtech.from_id(force, queued_id)
+      keep = rt ~= nil
+      if rt then
+        for _, prerequisite in pairs(rt.prerequisites) do
+          if removed[prerequisite.id] then
+            keep = false
+            break
           end
         end
-      end
-      if not paused and next(queue) ~= nil then
-        set_queue(force, {queue[1].tech})
-      else
-        set_queue(force, {})
       end
     end
+    if keep then
+      result[#result + 1] = queued_id
+    else
+      removed[queued_id] = true
+    end
+  end
+  data.queue = result
+end
+
+-- Empties the queue; the active research is kept unless the queue is paused.
+function queue.clear(force)
+  local data = data_of(force)
+  if queue.is_paused(force) or #data.queue == 0 then
+    data.queue = {}
+  else
+    data.queue = {data.queue[1]}
   end
 end
 
-return {
-  new = new,
-  is_paused = function(force)
-    local force_data = storage.forces[force.index]
-    return force_data.queue_paused
-  end,
-  set_paused = function(force, paused)
-    local force_data = storage.forces[force.index]
-    force_data.queue_paused = paused
-  end,
-  toggle_paused = function(force, paused)
-    local force_data = storage.forces[force.index]
-    force_data.queue_paused = not force_data.queue_paused
-  end,
-  is_researchable = function(force, tech)
-    local force_data = storage.forces[force.index]
-    local queue = force_data.queue
-    return is_researchable(force, queue, tech)
-  end,
-  in_queue = function(force, tech)
-    local force_data = storage.forces[force.index]
-    local queue = force_data.queue
-    return in_queue(force, queue, tech)
-  end,
-  is_head = function(force, tech, ignore_level)
-    local force_data = storage.forces[force.index]
-    local queue = force_data.queue
-    return is_head(force, queue, tech, ignore_level)
-  end,
-  get_head = function(force)
-    local force_data = storage.forces[force.index]
-    local queue = force_data.queue
-    return get_head(force, queue)
-  end,
-  queue_pos = function(force, tech)
-    local force_data = storage.forces[force.index]
-    local queue = force_data.queue
-    return queue_pos(force, queue, tech)
-  end,
-  enqueue = function(force, tech)
-    local force_data = storage.forces[force.index]
-    local queue = force_data.queue
-    return enqueue(force, queue, tech)
-  end,
-  enqueue_tail = function(force, tech)
-    local force_data = storage.forces[force.index]
-    local queue = force_data.queue
-    return enqueue_tail(force, queue, tech)
-  end,
-  enqueue_head = function(force, tech)
-    local force_data = storage.forces[force.index]
-    local queue = force_data.queue
-    force_data.queue_paused = false
-    return enqueue_head(force, queue, tech)
-  end,
-  enqueue_before_head = function(force, tech)
-    local force_data = storage.forces[force.index]
-    local queue = force_data.queue
-    local paused = force_data.queue_paused
-    return enqueue_before_head(force, queue, paused, tech)
-  end,
-  shift_earlier = function(force, tech)
-    local force_data = storage.forces[force.index]
-    local queue = force_data.queue
-    return shift_earlier(force, queue, tech)
-  end,
-  shift_earliest = function(force, tech)
-    local force_data = storage.forces[force.index]
-    local queue = force_data.queue
-    return shift_earliest(force, queue, tech)
-  end,
-  can_shift_earlier = function(force, tech)
-    local force_data = storage.forces[force.index]
-    local queue = force_data.queue
-    return try_shift_earlier(force, queue, tech) ~= nil
-  end,
-  shift_before_earliest = function(force, tech)
-    local force_data = storage.forces[force.index]
-    local queue = force_data.queue
-    local paused = force_data.queue_paused
-    return shift_before_earliest(force, queue, paused, tech)
-  end,
-  shift_later = function(force, tech)
-    local force_data = storage.forces[force.index]
-    local queue = force_data.queue
-    return shift_later(force, queue, tech)
-  end,
-  shift_latest = function(force, tech)
-    local force_data = storage.forces[force.index]
-    local queue = force_data.queue
-    return shift_latest(force, queue, tech)
-  end,
-  can_shift_later = function(force, tech)
-    local force_data = storage.forces[force.index]
-    local queue = force_data.queue
-    return try_shift_later(force, queue, tech) ~= nil
-  end,
-  dequeue = function(force, tech)
-    local force_data = storage.forces[force.index]
-    local queue = force_data.queue
-    return dequeue(force, queue, tech)
-  end,
-  clear = function(force)
-    local force_data = storage.forces[force.index]
-    return clear(force, force_data)
-  end,
-  iter = function(force)
-    local force_data = storage.forces[force.index]
-    local queue = force_data.queue
-    return iter(force, queue)
-  end,
-  update = function(force, mode)
-    local force_data = storage.forces[force.index]
-    local queue = force_data.queue
-    local paused = force_data.queue_paused
-    return update(force, queue, paused, mode)
+-- Drops everything that cannot or no longer needs to be researched and makes
+-- sure every item comes after its unresearched prerequisites.
+function queue.normalize(force)
+  local data = data_of(force)
+  local memo, kept, result = {}, {}, {}
+  for _, id in ipairs(data.queue) do
+    local rt = rqtech.from_id(force, id)
+    if rt and not kept[id] and rqtech.is_queueable(rt, memo) then
+      local ready = true
+      for _, prerequisite in pairs(rt.prerequisites) do
+        if rqtech.is_researchable(prerequisite) and not kept[prerequisite.id] then
+          ready = false
+          break
+        end
+      end
+      if ready then
+        kept[id] = true
+        result[#result + 1] = id
+      end
+    end
   end
-}
+  data.queue = result
+end
+
+---------------------------------------------------------------------------
+-- Vanilla research queue
+---------------------------------------------------------------------------
+
+-- Ids of the vanilla queue. Repeated entries of an infinite technology are
+-- consecutive levels.
+local function read_vanilla(force)
+  local ids = {}
+  local seen = {}
+  for _, tech in ipairs(force.research_queue) do
+    local offset = seen[tech.name] or 0
+    seen[tech.name] = offset + 1
+    local rt = rqtech.current(tech, offset)
+    if rt then
+      ids[#ids + 1] = rt.id
+    end
+  end
+  return ids
+end
+
+local function write_vanilla(force, ids)
+  local techs = {}
+  for _, id in ipairs(ids) do
+    local rt = rqtech.from_id(force, id)
+    if rt then
+      techs[#techs + 1] = rt.tech
+    end
+  end
+  force.research_queue = techs
+end
+
+-- Copies the head of the queue into the vanilla queue (empty while paused).
+function queue.push(force)
+  if not mirror_enabled() then
+    return
+  end
+  local data = data_of(force)
+  local window = {}
+  if not data.paused then
+    for i = 1, math.min(MIRROR_SIZE, #data.queue) do
+      window[i] = data.queue[i]
+    end
+  end
+
+  if not same_list(window, read_vanilla(force)) then
+    pushing = true
+    local ok, err = pcall(write_vanilla, force, window)
+    pushing = false
+    if not ok then
+      error(err)
+    end
+  end
+  data.mirrored = read_vanilla(force)
+end
+
+-- Adopts changes a player made in the vanilla queue. Returns true if the queue
+-- changed. Entries the player added or reordered become the head of the queue,
+-- entries the player removed are dropped, and emptying the vanilla queue pauses.
+function queue.pull(force)
+  if pushing or not mirror_enabled() then
+    return false
+  end
+  local data = data_of(force)
+  local vanilla = read_vanilla(force)
+  if same_list(vanilla, data.mirrored) then
+    return false
+  end
+
+  local in_vanilla = to_set(vanilla)
+  local was_mirrored = to_set(data.mirrored)
+  local merged = {}
+  for _, id in ipairs(vanilla) do
+    merged[#merged + 1] = id
+  end
+  for _, id in ipairs(data.queue) do
+    if not in_vanilla[id] and not was_mirrored[id] then
+      merged[#merged + 1] = id
+    end
+  end
+  data.queue = merged
+
+  if #vanilla > 0 then
+    data.paused = false
+  elseif #data.mirrored > 0 then
+    data.paused = true
+  end
+  data.mirrored = vanilla
+  return true
+end
+
+-- Pull, then restore a valid queue and mirror it again. Returns true if
+-- anything was adopted from the vanilla queue.
+function queue.sync(force)
+  local changed = queue.pull(force)
+  if changed then
+    queue.normalize(force)
+    queue.push(force)
+  end
+  return changed
+end
+
+return queue

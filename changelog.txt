@@ -1,114 +1,35 @@
 ---------------------------------------------------------------------------------------------------
-Version: 0.6.29
-Date: 2026-10-11
-
-  Bugfixes:
-    - Fixed the ASAP and next-in-queue buttons so technologies are inserted at the requested position instead of remaining at the end.
-    - Preserved prerequisite order when moving a technology forward, and kept the active research first when adding the next technology.
-
----------------------------------------------------------------------------------------------------
-Version: 0.6.28
-Date: 2026-09-26
-
-  Bugfixes:
-    - Added a representative spawner icon for capture-spawner technologies without a specific target, keeping the technology list rows aligned.
-
----------------------------------------------------------------------------------------------------
-Version: 0.6.27
-Date: 2026-09-26
-
-  Bugfixes:
-    - Added the missing fallback text for capture-spawner and other research triggers without a specific target.
-    - Fixed empty trigger tooltips, which could make the tooltip frame appear to lose its top and bottom border.
-
----------------------------------------------------------------------------------------------------
-Version: 0.6.26
-Date: 2026-09-26
-
-  Features:
-    - Moved research-trigger technologies below science-pack technologies in the research list.
-    - Added the correct research trigger name and icon to technology tooltips and list entries.
-
-  Bugfixes:
-    - Fixed research-trigger technologies showing an incorrect zero-cost science-pack requirement.
-    - Made research-trigger handling safe when no lab research ingredients are present.
-
----------------------------------------------------------------------------------------------------
-Version: 0.6.25
-Date: 2026-09-06
-
-  Bugfixes:
-    - Corrected science pack totals and remaining-time estimates for repeatable technologies when the technology price multiplier is greater than 1.
-
-  Thanks:
-    - Thanks to yejenar480 for reporting the repeatable technology cost calculation error.
-
----------------------------------------------------------------------------------------------------
-Version: 0.6.24
-Date: 2026-08-22
-
-  Bugfixes:
-    - Fixed the researched and upgraded technology filters so both checkboxes can be selected independently.
-
----------------------------------------------------------------------------------------------------
-Version: 0.6.23
-Date: 2026-06-20
-
-  Bugfixes:
-    - Removed duplicate research completion notification from the mod; only the base game message is shown now.
-    - Fixed tooltip science pack icons for technology requirements by defaulting missing ingredient types.
-    - Added prerequisite technology information to the research queue tooltip.
-
----------------------------------------------------------------------------------------------------
-Version: 0.6.22
-Date: 2026-06-14
-
-  Graphics:
-    - Updated mod thumbnail to new dieselpunk industrial style artwork.
-
----------------------------------------------------------------------------------------------------
-Version: 0.6.21
-Date: 2026-06-14
-
-  Locale:
-    - Added missing "research-finished" locale key that caused an "Unknown key" error in chat when a technology finished researching.
-
----------------------------------------------------------------------------------------------------
-Version: 0.6.20
-Date: 2026-06-14
-
-  Bugfixes:
-    - Fixed crash on load caused by hardcoded mod path "__factorio-research-queue__" not matching the renamed mod. Updated references in prototypes/shortcuts.lua and prototypes/sprites.lua.
-
-  Graphics:
-    - Added thumbnail.png to mod root.
-
----------------------------------------------------------------------------------------------------
-Version: 0.6.19
-Date: 2026-06-14
-
+Version: 1.0.0
+Date: 2026-10-17
   Info:
-    - Updated mod name, title, author and description with proper credits to original authors sh4dow and sonaxaton.
-
----------------------------------------------------------------------------------------------------
-Version: 0.6.18
-Date: 2026-06-14
-
+    - Complete rewrite for Factorio 2.0 with a simpler code base. The mod is inspired by the earlier mods
+      Extended Research Queue (sh4dow) and Research Queue (sonaxaton).
+    - No longer depends on flib.
+  Features:
+    - Searching technologies now works in the player's own language, not only on internal names.
+    - The window shrinks to fit small screens.
+    - The science pack filter follows what the force can currently produce until a pack is toggled by hand.
+    - The research queue is read back from the vanilla queue through the 2.0 research events.
+    - Translations for Danish, German, French, Spanish, Italian, Brazilian Portuguese, Polish, Russian,
+      Japanese, Korean and Simplified Chinese.
+  Changes:
+    - The vanilla queue synchronisation setting is replaced by one on/off setting, "Mirror queue to the
+      vanilla research queue". When on, the first 4 queue entries are mirrored into the vanilla queue;
+      when off, the extended queue is only a planning list.
+    - Saves from earlier versions start with an empty extended queue; research already queued in the
+      vanilla queue is picked up.
+    - The search field is always visible in the title bar.
+    - New shortcut bar icon: three research flasks.
+    - Technology cells have a fixed width and the lists never scroll horizontally, so the layout cannot
+      shift when a horizontal scrollbar would otherwise appear.
+    - Technologies unlocked by a research trigger are shown but can no longer be queued.
+    - Removed the research completion notification setting, the cheat button and the debug button.
+    - Progress bars and time estimates update every second while the window is open.
   Bugfixes:
-    - Fixed crash on queue interaction: force.research_queue_enabled was removed in Factorio 2.0. The research queue is now always enabled. Removed all reads and writes to this property in scripts/queue.lua.
-
----------------------------------------------------------------------------------------------------
-Version: 0.6.17
-Date: 2026-06-14
-
-  Bugfixes:
-    - Fixed crash on init: force.get_saved_technology_progress() was removed in Factorio 2.0. Replaced with tech.saved_progress property on LuaTechnology in scripts/rqtech.lua.
-
----------------------------------------------------------------------------------------------------
-Version: 0.6.16
-Date: 2026-06-14
-
-  Bugfixes:
-    - Fixed crash on init: research_unit_ingredients no longer includes a "type" field in Factorio 2.0 (science packs are always items). Sprite paths now default to "item/" when type is nil (scripts/gui/main.lua).
-    - Fixed science pack filter detection failing silently for the same reason (scripts/gui/actions.lua).
-    - Fixed version format: Factorio 2.0 requires versions in Major.Middle.Minor format (3 parts). Renamed mod from factorio-research-queue to factorio-research-queue-for-space_age.
+    - The research speed estimate is now part of the save data. It was kept outside it before, which could
+      desynchronise multiplayer games.
+    - Adding a technology as next or ASAP now also moves its missing prerequisites to the front.
+    - Pausing and emptying the queue in the vanilla UI is now respected instead of being refilled at once.
+    - Prerequisite checks between several queued levels of the same infinite technology are now exact.
+    - Prepared for Factorio 2.1: science packs are found through technology ingredients and multi-entity
+      mining triggers are handled. This is untested.
