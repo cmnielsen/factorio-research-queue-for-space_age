@@ -1,4 +1,23 @@
 ---------------------------------------------------------------------------------------------------
+Version: 1.0.2
+Date: 2026-10-31
+  Info:
+    - Added a warning to the mod description: version 1.0.1 and newer require Factorio 2.1, while Factorio
+      2.0.77 and older should use version 1.0.0.
+
+---------------------------------------------------------------------------------------------------
+Version: 1.0.1
+Date: 2026-10-30
+  Info:
+    - Built for Factorio 2.1. The mod now requires Factorio 2.1, because 2.1 does not load mods that declare
+      compatibility with 2.0 only. Version 1.0.0 remains the release for Factorio 2.0.
+    - The mod title is now "Extended Research Queue" (without "2.0").
+  Changes:
+    - Checked against the Factorio 2.1 API: science packs are found through technology ingredients (they are
+      plain items in 2.1) and mining triggers that list several entities are handled.
+    - Missing core shadow graphics no longer break the styles; they only remove the shadow.
+    - If the check for which science packs can be made fails, the pack is shown instead of hiding technologies.
+---------------------------------------------------------------------------------------------------
 Version: 1.0.0
 Date: 2026-10-17
   Info:

@@ -1,13 +1,13 @@
 {
   "name": "factorio-research-queue-for-space_age",
-  "version": "1.0.0",
-  "title": "Extended Research Queue 2.0",
+  "version": "1.0.2",
+  "title": "Extended Research Queue",
   "author": "cmnielsen",
   "contact": "",
   "homepage": "https://mods.factorio.com/mod/factorio-research-queue-for-space_age",
-  "description": "An improved GUI for managing the research queue in Factorio 2.x, with filtering, translated search, queue controls, research time estimates and prerequisite information. Inspired by the earlier mods Extended Research Queue (sh4dow) and Research Queue (sonaxaton).",
-  "factorio_version": "2.0",
+  "description": "WARNING: Version 1.0.1 and newer require Factorio 2.1. If you play Factorio 2.0.77 or older, use version 1.0.0 of this mod. An improved GUI for managing the research queue, with filtering, translated search, queue controls, research time estimates and prerequisite information. Inspired by the earlier mods Extended Research Queue (sh4dow) and Research Queue (sonaxaton).",
+  "factorio_version": "2.1",
   "dependencies": [
-    "base >= 2.0.0"
+    "base >= 2.1.0"
   ]
 }

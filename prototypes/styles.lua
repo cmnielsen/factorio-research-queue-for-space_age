@@ -5,6 +5,11 @@ local util = require('util')
 
 local styles = data.raw['gui-style'].default
 
+-- Shadow graphics defined by the core styles (read defensively: if a future version
+-- stops providing them the styles simply get no shadow)
+local default_shadow = rawget(_G, 'default_shadow')
+local default_inner_shadow = rawget(_G, 'default_inner_shadow')
+
 local TECH_LIST_BUTTON_SIZE = 64 + 8 * 2 + 8
 local TECH_QUEUE_BUTTON_SIZE = 64 * 4 / 4 + 8
 

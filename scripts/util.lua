@@ -102,7 +102,7 @@ end
 
 -- True if the force can currently produce the item: either an unlocked recipe
 -- makes it, or it is a rocket launch product of an item the force can craft.
-function util.is_item_available(force, item_name)
+local function check_item_available(force, item_name)
   if has_enabled_recipe(force, item_name) then
     return true
   end
@@ -119,6 +119,16 @@ function util.is_item_available(force, item_name)
     end
   end
   return false
+end
+
+-- If the check itself fails the pack is treated as available, so technologies
+-- are shown rather than hidden.
+function util.is_item_available(force, item_name)
+  local ok, available = pcall(check_item_available, force, item_name)
+  if ok then
+    return available
+  end
+  return true
 end
 
 ---------------------------------------------------------------------------
